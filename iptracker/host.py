@@ -1,13 +1,29 @@
+from datetime import datetime
+from enum import Enum
 from typing import Any
 
+class HostDataSource(Enum):
+    Local = 0
+    Remote = 1
+
 class HostData:
-    def __init__(self, host: str, fields: dict[str, Any]) -> None:
+    def __init__(self, host: str, fetch_date: datetime, source: HostDataSource, fields: dict[str, Any]) -> None:
         self._host = host
+        self._source = source
+        self._date = fetch_date
         self._fields = fields
         
     @property
     def host(self):
         return self._host
+    
+    @property
+    def source(self):
+        return self._source
+    
+    @property
+    def fetched_at(self):
+        return self._date
     
     @property
     def fields(self):
