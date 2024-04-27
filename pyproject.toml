@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "iptracker"
+version = "0.1.0"
+description = ""
+authors = ["LifetimeMistake <57274704+LifetimeMistake@users.noreply.github.com>"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/LifetimeMistake/iptracker"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+Flask = "^3.0.3"
+requests = "^2.31.0"
+prometheus-client = "^0.20.0"
+pymongo = "^4.7.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
