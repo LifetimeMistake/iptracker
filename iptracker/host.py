@@ -5,6 +5,14 @@ from typing import Any
 class HostDataSource(Enum):
     Local = 0
     Remote = 1
+    
+    def __str__(self) -> str:
+        if self == HostDataSource.Local:
+            return "local"
+        elif self == HostDataSource.Remote:
+            return "remote"
+        else:
+            raise NotImplementedError()
 
 class HostData:
     def __init__(self, host: str, fetch_date: datetime, source: HostDataSource, fields: dict[str, Any]) -> None:

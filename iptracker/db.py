@@ -1,12 +1,12 @@
 import logging
 from typing import Optional
 from pymongo import MongoClient
-from iptracker.constants import LOGGER_NAME, DS_CACHE_EXPIRATION
+from iptracker.constants import DS_CACHE_EXPIRATION
 from iptracker.host import HostData, HostDataSource
 
 class HostDataStore:
     def __init__(self, connection: MongoClient | str, cache_expiration_seconds: Optional[int] = None):
-        self._logger = logging.getLogger(LOGGER_NAME)
+        self._logger = logging.getLogger()
         
         if isinstance(connection, str):
             self._connection = MongoClient(connection)

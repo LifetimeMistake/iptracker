@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Any, Generator, Optional, Self
 import requests
 from iptracker.host import HostData, HostDataSource
-from iptracker.constants import IPAPI_REQUIRED_FIELDS, IPAPI_URL, IPAPI_DEFAULT_FIELDS, IPAPI_USER_AGENT, IPAPI_BATCH_SIZE, LOGGER_NAME
+from iptracker.constants import IPAPI_SYSTEM_FIELDS, IPAPI_URL, IPAPI_DEFAULT_FIELDS, IPAPI_USER_AGENT, IPAPI_BATCH_SIZE
 
 class QueryResult(Enum):
     Success = 0
@@ -57,19 +57,20 @@ def generate_splits(data, batch_size: int) -> Generator[Any, Any, None]:
         yield data[i:i + batch_size]
         
 def generate_fields(fields: list[str]) -> str:
-    for field in IPAPI_REQUIRED_FIELDS:
-        if field not in fields:
-            fields.append(field)
+    new_fields = [*fields]
+    for field in IPAPI_SYSTEM_FIELDS:
+        if field not in new_fields:
+            new_fields.append(field)
             
-    return ",".join(fields)
+    return ",".join(new_fields)
 
-def json_to_response(data) -> QueryResponse:
+def dict_to_response(data) -> QueryResponse:
     if data["status"] == "success":
         return QueryResponse.success(HostData(
             data["query"], 
             datetime.datetime.now(datetime.UTC),
             HostDataSource.Remote,
-            {k:v for k,v in data.items() if k not in ["status", "message", "query"]}
+            {k:v for k,v in data.items() if k not in IPAPI_SYSTEM_FIELDS}
         ))
     elif data["status"] == "fail":
         return QueryResponse.fail(
@@ -78,6 +79,29 @@ def json_to_response(data) -> QueryResponse:
         )
     else:
         raise ValueError(f"Invalid remote status: {data['status']}")
+    
+def response_to_dict(response, include_fetch_date: bool, include_data_source: bool) -> dict[str, str]:
+    if response.status == QueryResult.Success:
+        response_object = {
+            "query": response.host,
+            "status": "success",
+            **response.result.fields
+        }
+        
+        if include_fetch_date:
+            response_object["fetched_at"] = response.result.fetched_at
+        if include_data_source:
+            response_object["data_source"] = str(response.result.source)
+                
+        return response_object
+    else:
+        response_object = {
+            "query": response.host,
+            "status": "fail",
+            "messasge": response.error_message
+        }
+        
+        return response_object
     
 def find_host_errors(host: str) -> Optional[str]:
     try:
@@ -91,19 +115,20 @@ def find_host_errors(host: str) -> Optional[str]:
 
 class IPAPI:
     def __init__(self, api_url: Optional[str] = None, batch_size: Optional[int] = None, user_agent: Optional[str] = None) -> Self:
-        self._logger = logging.getLogger(LOGGER_NAME)
+        self._logger = logging.getLogger()
         self._api_url = (api_url or IPAPI_URL).strip("/")
         self._batch_size = batch_size or IPAPI_BATCH_SIZE
         self._user_agent = user_agent or IPAPI_USER_AGENT
         
-    def query(self, hosts: str | list[str], filters: Optional[list[str]] = None) -> QueryResponse | list[QueryResponse]:
+    def query(self, hosts: str | list[str], fields: Optional[list[str]] = None) -> QueryResponse | list[QueryResponse]:
+        fields = generate_fields(fields or IPAPI_DEFAULT_FIELDS)
         if isinstance(hosts, str):
             # validate host address
             host_error = find_host_errors(hosts)
             if host_error:
                 return QueryResponse.fail(hosts, host_error)
             
-            return self.__query_one(hosts, filters)
+            return self.__query_one(hosts, fields)
         elif isinstance(hosts, list):
             results = []
             def validate_hosts():
@@ -115,19 +140,19 @@ class IPAPI:
                     
                     yield x
             
-            for batch in generate_splits(validate_hosts(), self._batch_size):
-                results.extend(self.__query_batch(batch, filters))
+            for batch in generate_splits(list(validate_hosts()), self._batch_size):
+                results.extend(self.__query_batch(batch, fields))
             return results
         else:
             raise TypeError("Invalid input type")
     
-    def __query_one(self, host: str, filters: Optional[list[str]] = None) -> QueryResponse:
+    def __query_one(self, host: str, fields: str) -> QueryResponse:
         self._logger.info("Resolving host %s", host)
         
         request_url = f"{self._api_url}/json/{host}"
         response = requests.get(
             request_url,
-            params={"fields": generate_fields(filters) if filters else IPAPI_DEFAULT_FIELDS},
+            params={"fields": fields},
             headers={"User-Agent": self._user_agent}
         )
         
@@ -137,15 +162,15 @@ class IPAPI:
             self._logger.info("Rate limit reached, waiting for %d seconds", wait_time)
             time.sleep(wait_time)
             # Retry request
-            return self.__query_one(host, filters)
+            return self.__query_one(host, fields)
         
         if response.status_code != 200:
             self._logger.error("IPAPI remote error: %d, %s", response.status_code, response.text)
             raise Exception(f"Remote error: {response.status_code}")
         
-        return json_to_response(response.json())
+        return dict_to_response(response.json())
     
-    def __query_batch(self, hosts: list[str], filters: Optional[str] = None) -> list[QueryResponse]:
+    def __query_batch(self, hosts: list[str], fields: str) -> list[QueryResponse]:
         if len(hosts) > self._batch_size:
             raise ValueError(f"Invalid batch size: {len(hosts)}, maximum allowed size is {self._batch_size}")
         
@@ -155,7 +180,7 @@ class IPAPI:
         request_url = f"{self._api_url}/batch"
         response = requests.post(
             request_url,
-            params={"fields": generate_fields(filters) if filters else IPAPI_DEFAULT_FIELDS},
+            params={"fields": fields},
             headers={"User-Agent": self._user_agent, "Content-Type": "application/json"},
             data=json.dumps(hosts)
         )
@@ -166,13 +191,13 @@ class IPAPI:
             self._logger.info("Rate limit reached, waiting for %d seconds", wait_time)
             time.sleep(wait_time)
             # Retry request
-            return self.__query_batch(hosts, filters)
+            return self.__query_batch(hosts, fields)
         
         if response.status_code != 200:
             self._logger.error("IPAPI remote error: %d, %s", response.status_code, response.text)
             raise Exception(f"Remote error: {response.status_code}")
         
         for host in response.json():
-            results.append(json_to_response(host))
+            results.append(dict_to_response(host))
             
         return results
