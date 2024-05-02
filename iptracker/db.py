@@ -3,9 +3,10 @@ from typing import Optional
 from pymongo import MongoClient
 from iptracker.constants import DS_CACHE_EXPIRATION
 from iptracker.host import HostData, HostDataSource
+from iptracker.metrics import Metrics
 
 class HostDataStore:
-    def __init__(self, connection: MongoClient | str, cache_expiration_seconds: Optional[int] = None):
+    def __init__(self, connection: MongoClient | str, cache_expiration_seconds: Optional[int] = None, metrics: Optional[Metrics] = None):
         self._logger = logging.getLogger()
         
         if isinstance(connection, str):
@@ -18,6 +19,15 @@ class HostDataStore:
         db.cache.create_index("host", unique=True)
         self._db = db
         self._hosts = db.get_collection("hosts")
+        self._metrics = metrics
+        self.__update_metrics()
+        
+    def __update_metrics(self):
+        if not self._metrics:
+            return
+        
+        db_size = self._hosts.count_documents()
+        self._metrics.submit_db_size(db_size)
             
     def server_info(self):
         return self._connection.server_info()
@@ -49,4 +59,5 @@ class HostDataStore:
         )
         
         self._logger.debug("Host %s submitted to cache", host_data.host)
+        self.__update_metrics()
         return result.modified_count == 1

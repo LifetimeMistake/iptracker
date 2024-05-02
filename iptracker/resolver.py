@@ -4,6 +4,7 @@ from iptracker.api import IPAPI, QueryResponse, QueryResult, find_host_errors
 from iptracker.constants import IPAPI_DEFAULT_FIELDS, IPAPI_SYSTEM_FIELDS
 from iptracker.db import HostDataStore
 from iptracker.host import HostData
+from iptracker.metrics import Metrics
 
 def has_all_fields(host: HostData, fields: list[str]) -> bool:
     for field in fields:
@@ -29,20 +30,26 @@ def filter_fields(fields: list[str]) -> list[str]:
     return filtered_fields
 
 class HostResolver:
-    def __init__(self, api: Optional[IPAPI] = None, local_db: Optional[HostDataStore] = None) -> Self:
+    def __init__(self, api: Optional[IPAPI] = None, local_db: Optional[HostDataStore] = None, metrics: Optional[Metrics] = None) -> Self:
         self._remote_api = api or IPAPI()
         self._local_db = local_db
         self._logger = logging.getLogger()
+        self._metrics = metrics
     
     def query(self, hosts: str | list[str], fields: Optional[list[str]] = None, skip_cache: bool = False) -> QueryResponse | list[QueryResponse]:
         fields = filter_fields(fields or IPAPI_DEFAULT_FIELDS)
         
         if isinstance(hosts, str):
-            return self.__query_one(hosts, fields, skip_cache)
+            result = self.__query_one(hosts, fields, skip_cache)
         elif isinstance(hosts, list):
-            return self.__query_many(hosts, fields, skip_cache)
+            result = self.__query_many(hosts, fields, skip_cache)
         else:
             raise TypeError("Invalid input type")
+        
+        if self._metrics:
+            self._metrics.submit_resolution(result)
+            
+        return result
     
     def __query_one(self, host: str, fields: list[str], skip_cache: bool) -> QueryResponse:
         if self._local_db and not skip_cache:

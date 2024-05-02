@@ -25,16 +25,16 @@ app = Flask(__name__)
 app.logger.setLevel(LOG_LEVEL)
 
 api = IPAPI(IPAPI_URL, IPAPI_BATCH_SIZE, IPAPI_USER_AGENT)
+metrics = Metrics()
 ds = None
 
 if MONGO_URI:
     connection = MongoClient(MONGO_URI)
-    ds = HostDataStore(ds, CACHE_EXPIRATION_TIME)
+    ds = HostDataStore(ds, CACHE_EXPIRATION_TIME, metrics)
 else:
     app.logger.warning("MongoDB URI not set. Queries will not be cached locally.")
 
-resolver = HostResolver(api, ds)
-metrics = Metrics()
+resolver = HostResolver(api, ds, metrics)
 
 @app.route("/json/<ip_address>", methods=["GET", "POST"])
 @metrics.time_request("/json")
