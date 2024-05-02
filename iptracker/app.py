@@ -5,6 +5,8 @@ from pymongo import MongoClient
 from iptracker.api import IPAPI, response_to_dict
 from iptracker.db import HostDataStore
 from iptracker.resolver import HostResolver
+from iptracker.constants import DEFAULT_APP_HOST, DEFAULT_APP_PORT, DEFAULT_METRICS_PORT
+from iptracker.metrics import Metrics
 
 MONGO_URI = os.getenv("MONGO_URI")
 CACHE_EXPIRATION_TIME = os.getenv("CACHE_EXPIRATION_TIME")
@@ -15,8 +17,9 @@ IPAPI_URL = os.getenv("IPAPI_URL")
 IPAPI_BATCH_SIZE = os.getenv("IPAPI_BATCH_SIZE")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
-LISTEN_ADDRESS = os.getenv("LISTEN_ADDRESS", "0.0.0.0")
-APP_PORT = int(os.getenv("APP_PORT", 8080))
+APP_HOST = os.getenv("APP_HOST", DEFAULT_APP_HOST)
+APP_PORT = int(os.getenv("APP_PORT", DEFAULT_APP_PORT))
+METRICS_PORT = int(os.getenv("METRICS_PORT", DEFAULT_METRICS_PORT))
 
 app = Flask(__name__)
 app.logger.setLevel(LOG_LEVEL)
@@ -31,8 +34,10 @@ else:
     app.logger.warning("MongoDB URI not set. Queries will not be cached locally.")
 
 resolver = HostResolver(api, ds)
+metrics = Metrics()
 
 @app.route("/json/<ip_address>", methods=["GET", "POST"])
+@metrics.time_request("/json")
 def endpoint_single(ip_address):
     fields = request.args.get("fields", None)
     fields = fields.split(",") if fields else COLLECTED_FIELDS
@@ -48,6 +53,7 @@ def endpoint_single(ip_address):
     )
 
 @app.route("/batch", methods=["POST"])
+@metrics.time_request("/batch")
 def endpoint_batch():
     fields = request.args.get("fields", None)
     fields = fields.split(",") if fields else COLLECTED_FIELDS
@@ -64,4 +70,5 @@ def endpoint_batch():
     )
 
 if __name__ == '__main__':
-    app.run(host=LISTEN_ADDRESS, port=APP_PORT)
+    metrics.start_server(host=APP_HOST, port=METRICS_PORT)
+    app.run(host=APP_HOST, port=APP_PORT)

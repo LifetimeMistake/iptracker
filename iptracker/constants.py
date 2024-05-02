@@ -10,3 +10,7 @@ IPAPI_DEFAULT_FIELDS = [
     "isp" ,"org", "as", "mobile", "proxy", "hosting"
 ]
 IPAPI_USER_AGENT = f"iptracker/{__version__}"
+
+DEFAULT_APP_HOST = "0.0.0.0"
+DEFAULT_APP_PORT = 8080
+DEFAULT_METRICS_PORT = 9090
