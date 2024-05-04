@@ -1,0 +1,9 @@
+services:
+  tracker:
+    build: .
+    restart: unless-stopped
+    environment:
+      MONGO_URI: ...
+    ports:
+      - 8080
+      - 9090

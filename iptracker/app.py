@@ -69,6 +69,6 @@ def endpoint_batch():
         mimetype='application/json'
     )
 
-if __name__ == '__main__':
+def start_server():
     metrics.start_server(host=APP_HOST, port=METRICS_PORT)
-    app.run(host=APP_HOST, port=APP_PORT)
+    return app
