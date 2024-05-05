@@ -29,8 +29,11 @@ metrics = Metrics()
 ds = None
 
 if MONGO_URI:
+    app.logger.info("Connecting to MongoDB server...")
     connection = MongoClient(MONGO_URI)
-    ds = HostDataStore(ds, CACHE_EXPIRATION_TIME, metrics)
+    server_info = connection.server_info()
+    app.logger.info(f"Connected to MongoDB v{server_info['version']}")
+    ds = HostDataStore(connection, CACHE_EXPIRATION_TIME, metrics)
 else:
     app.logger.warning("MongoDB URI not set. Queries will not be cached locally.")
 
