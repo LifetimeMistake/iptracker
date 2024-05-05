@@ -43,7 +43,7 @@ class HostDataStore:
         
         return HostData(host, date, HostDataSource.Local, fields)
     
-    def set(self, host_data: HostData):
+    def set(self, host_data: HostData) -> bool:
         obj = {
             "host": host_data.host,
             "created_at": host_data.fetched_at,
@@ -56,7 +56,7 @@ class HostDataStore:
             upsert=True
         )
         
-        result = result.raw_result.get("modifiedCount") == 1 or result.raw_result.get("upsertedCount") == 1
+        result = result.upserted_id is not None or result.modified_count == 1
         if result:
             self.__update_metrics()
             
