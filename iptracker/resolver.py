@@ -93,11 +93,11 @@ class HostResolver:
                 
         remote_results = self._remote_api.query(queue, fields)
         if self._local_db:
-            for result in remote_results:
-                if result.status != QueryResult.Success:
+            for remote_result in remote_results:
+                if remote_result.status != QueryResult.Success:
                     continue
-                if not self._local_db.set(result.result):
-                    self._logger.warn(f"Failed to push host {result.host} to local DB")
+                if not self._local_db.set(remote_result.result):
+                    self._logger.warn(f"Failed to push host {remote_result.host} to local DB")
                     
         result.extend(remote_results)
         return result
