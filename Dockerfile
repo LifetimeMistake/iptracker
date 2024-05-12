@@ -27,6 +27,7 @@ COPY iptracker ./iptracker
 
 ENV APP_HOST=0.0.0.0 \
     APP_PORT=8080 \
-    METRICS_PORT=9090
+    METRICS_PORT=9090 \
+    REQUEST_TIMEOUT=600
 
-ENTRYPOINT gunicorn --bind ${APP_HOST}:${APP_PORT} iptracker.app:app
+ENTRYPOINT gunicorn --timeout ${REQUEST_TIMEOUT} --bind "${APP_HOST}:${APP_PORT}" "iptracker.app:start_server()"
